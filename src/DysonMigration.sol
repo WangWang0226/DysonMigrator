@@ -56,13 +56,9 @@ contract DysonMigration {
         uint256 _endTime
     ) {
         if (
-            _owner == address(0) ||
-            address(_oldToken) == address(0) ||
-            address(_newToken) == address(0) ||
-            _rateNumerator == 0 ||
-            _rateDenominator == 0 ||
-            _startTime >= _endTime ||
-            address(_oldToken) == address(_newToken)
+            _owner == address(0) || address(_oldToken) == address(0) || address(_newToken) == address(0)
+                || _rateNumerator == 0 || _rateDenominator == 0 || _startTime >= _endTime
+                || address(_oldToken) == address(_newToken)
         ) {
             revert InvalidParams();
         }
@@ -101,16 +97,14 @@ contract DysonMigration {
     }
 
     function _safeTransfer(IERC20 token, address to, uint256 amount) private {
-        (bool success, bytes memory data) = address(token).call(
-            abi.encodeWithSelector(token.transfer.selector, to, amount)
-        );
+        (bool success, bytes memory data) =
+            address(token).call(abi.encodeWithSelector(token.transfer.selector, to, amount));
         if (!success || (data.length != 0 && !abi.decode(data, (bool)))) revert InvalidParams();
     }
 
     function _safeTransferFrom(IERC20 token, address from, address to, uint256 amount) private {
-        (bool success, bytes memory data) = address(token).call(
-            abi.encodeWithSelector(token.transferFrom.selector, from, to, amount)
-        );
+        (bool success, bytes memory data) =
+            address(token).call(abi.encodeWithSelector(token.transferFrom.selector, from, to, amount));
         if (!success || (data.length != 0 && !abi.decode(data, (bool)))) revert InvalidParams();
     }
 }

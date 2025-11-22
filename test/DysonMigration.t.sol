@@ -172,15 +172,8 @@ contract DysonMigrationTest is Test {
         uint256 end = start + 500;
         MockERC20 old2 = new MockERC20("Old2", "OLD2");
         MockERC20 new2 = new MockERC20("New2", "NEW2");
-        DysonMigration migration2 = new DysonMigration(
-            owner,
-            IERC20(address(old2)),
-            IERC20(address(new2)),
-            2,
-            1,
-            start,
-            end
-        );
+        DysonMigration migration2 =
+            new DysonMigration(owner, IERC20(address(old2)), IERC20(address(new2)), 2, 1, start, end);
 
         old2.mint(user, 50 ether);
         new2.mint(owner, 200 ether);
@@ -227,15 +220,8 @@ contract DysonMigrationTest is Test {
         uint256 end = start + 100;
         MockERC20 old2 = new MockERC20("Old2", "OLD2");
         MockERC20 new2 = new MockERC20("New2", "NEW2");
-        DysonMigration migration2 = new DysonMigration(
-            owner,
-            IERC20(address(old2)),
-            IERC20(address(new2)),
-            1,
-            1,
-            start,
-            end
-        );
+        DysonMigration migration2 =
+            new DysonMigration(owner, IERC20(address(old2)), IERC20(address(new2)), 1, 1, start, end);
 
         old2.mint(user, 10 ether);
         vm.prank(user);
@@ -316,15 +302,8 @@ contract DysonMigrationTest is Test {
         uint256 start = block.timestamp + 5;
         uint256 end = start + 200;
 
-        DysonMigration migration2 = new DysonMigration(
-            owner,
-            IERC20(address(reenterOld)),
-            IERC20(address(freshNew)),
-            1,
-            1,
-            start,
-            end
-        );
+        DysonMigration migration2 =
+            new DysonMigration(owner, IERC20(address(reenterOld)), IERC20(address(freshNew)), 1, 1, start, end);
 
         reenterOld.mint(user, 5 ether);
         freshNew.mint(owner, 10 ether);
