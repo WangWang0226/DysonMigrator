@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-interface IERC20 {
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
+import {IERC20} from "./interface/IERC20.sol";
+import {TransferHelper} from "./lib/TransferHelper.sol";
 
 contract DysonMigration {
-    address public immutable owner;
-    IERC20 public immutable oldToken;
-    IERC20 public immutable newToken;
-    uint256 public immutable rateNumerator;
-    uint256 public immutable rateDenominator;
-    uint256 public immutable startTime;
-    uint256 public immutable endTime;
+    using TransferHelper for address;
+
+    address public immutable OWNER;
+    IERC20 public immutable OLD_TOKEN;
+    IERC20 public immutable NEW_TOKEN;
+    uint256 public immutable RATE_NUMERATOR;
+    uint256 public immutable RATE_DENOMINATOR;
+    uint256 public immutable START_TIME;
+    uint256 public immutable END_TIME;
 
     event Swapped(address indexed user, uint256 oldAmount, uint256 newAmount);
     event WithdrawOld(uint256 amount);
@@ -30,19 +29,18 @@ contract DysonMigration {
     bool private locked;
 
     modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
+        _onlyOwner();
         _;
     }
 
     modifier nonReentrant() {
-        if (locked) revert Reentrancy();
-        locked = true;
+        _nonReentrantEnter();
         _;
-        locked = false;
+        _nonReentrantExit();
     }
 
     modifier onlyDuringMigration() {
-        if (block.timestamp < startTime || block.timestamp > endTime) revert NotActive();
+        _onlyDuringMigration();
         _;
     }
 
@@ -62,49 +60,54 @@ contract DysonMigration {
         ) {
             revert InvalidParams();
         }
-        owner = _owner;
-        oldToken = _oldToken;
-        newToken = _newToken;
-        rateNumerator = _rateNumerator;
-        rateDenominator = _rateDenominator;
-        startTime = _startTime;
-        endTime = _endTime;
+        OWNER = _owner;
+        OLD_TOKEN = _oldToken;
+        NEW_TOKEN = _newToken;
+        RATE_NUMERATOR = _rateNumerator;
+        RATE_DENOMINATOR = _rateDenominator;
+        START_TIME = _startTime;
+        END_TIME = _endTime;
     }
 
     function swap(uint256 oldAmount) external nonReentrant onlyDuringMigration {
         if (oldAmount == 0) revert InvalidParams();
-        _safeTransferFrom(oldToken, msg.sender, address(this), oldAmount);
-        uint256 newAmount = (oldAmount * rateNumerator) / rateDenominator;
+        address(OLD_TOKEN).safeTransferFrom(msg.sender, address(this), oldAmount);
+        uint256 newAmount = (oldAmount * RATE_NUMERATOR) / RATE_DENOMINATOR;
         if (newAmount == 0) revert InvalidParams();
-        _safeTransfer(newToken, msg.sender, newAmount);
+        address(NEW_TOKEN).safeTransfer(msg.sender, newAmount);
         emit Swapped(msg.sender, oldAmount, newAmount);
     }
 
     function withdrawOldToken(address to) external onlyOwner {
-        if (block.timestamp <= endTime) revert NotEnded();
+        if (block.timestamp <= END_TIME) revert NotEnded();
         if (to == address(0)) revert InvalidRecipient();
-        uint256 amount = oldToken.balanceOf(address(this));
-        _safeTransfer(oldToken, to, amount);
+        uint256 amount = OLD_TOKEN.balanceOf(address(this));
+        address(OLD_TOKEN).safeTransfer(to, amount);
         emit WithdrawOld(amount);
     }
 
     function withdrawNewToken(address to) external onlyOwner {
-        if (block.timestamp <= endTime) revert NotEnded();
+        if (block.timestamp <= END_TIME) revert NotEnded();
         if (to == address(0)) revert InvalidRecipient();
-        uint256 amount = newToken.balanceOf(address(this));
-        _safeTransfer(newToken, to, amount);
+        uint256 amount = NEW_TOKEN.balanceOf(address(this));
+        address(NEW_TOKEN).safeTransfer(to, amount);
         emit WithdrawNew(amount);
     }
 
-    function _safeTransfer(IERC20 token, address to, uint256 amount) private {
-        (bool success, bytes memory data) =
-            address(token).call(abi.encodeWithSelector(token.transfer.selector, to, amount));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) revert InvalidParams();
+    function _onlyOwner() internal view {
+        if (msg.sender != OWNER) revert NotOwner();
     }
 
-    function _safeTransferFrom(IERC20 token, address from, address to, uint256 amount) private {
-        (bool success, bytes memory data) =
-            address(token).call(abi.encodeWithSelector(token.transferFrom.selector, from, to, amount));
-        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) revert InvalidParams();
+    function _nonReentrantEnter() internal {
+        if (locked) revert Reentrancy();
+        locked = true;
+    }
+
+    function _nonReentrantExit() internal {
+        locked = false;
+    }
+
+    function _onlyDuringMigration() internal view {
+        if (block.timestamp < START_TIME || block.timestamp > END_TIME) revert NotActive();
     }
 }

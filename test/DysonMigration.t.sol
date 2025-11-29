@@ -2,12 +2,13 @@
 pragma solidity ^0.8.23;
 
 import {Test} from "forge-std/Test.sol";
-import {DysonMigration, IERC20} from "../src/DysonMigration.sol";
+import {DysonMigration} from "../src/DysonMigration.sol";
+import {IERC20} from "../src/interface/IERC20.sol";
 
 contract MockERC20 {
     string public name;
     string public symbol;
-    uint8 public immutable decimals = 18;
+    uint8 public immutable DECIMALS = 18;
 
     mapping(address => uint256) internal balances;
     mapping(address => mapping(address => uint256)) internal allowances;
@@ -109,7 +110,8 @@ contract DysonMigrationTest is Test {
         oldToken.mint(user, 1_000 ether);
         newToken.mint(owner, 2_000 ether);
         vm.prank(owner);
-        newToken.transfer(address(migration), 2_000 ether);
+        bool ok = newToken.transfer(address(migration), 2_000 ether);
+        assertTrue(ok);
     }
 
     function _approveUser(uint256 amount) internal {
@@ -140,13 +142,13 @@ contract DysonMigrationTest is Test {
     }
 
     function testParamsAreImmutable() public view {
-        assertEq(migration.owner(), owner);
-        assertEq(address(migration.oldToken()), address(oldToken));
-        assertEq(address(migration.newToken()), address(newToken));
-        assertEq(migration.rateNumerator(), rateNumerator);
-        assertEq(migration.rateDenominator(), rateDenominator);
-        assertEq(migration.startTime(), startTime);
-        assertEq(migration.endTime(), endTime);
+        assertEq(migration.OWNER(), owner);
+        assertEq(address(migration.OLD_TOKEN()), address(oldToken));
+        assertEq(address(migration.NEW_TOKEN()), address(newToken));
+        assertEq(migration.RATE_NUMERATOR(), rateNumerator);
+        assertEq(migration.RATE_DENOMINATOR(), rateDenominator);
+        assertEq(migration.START_TIME(), startTime);
+        assertEq(migration.END_TIME(), endTime);
     }
 
     function testSwapSucceedsWithinWindow() public {
@@ -178,7 +180,8 @@ contract DysonMigrationTest is Test {
         old2.mint(user, 50 ether);
         new2.mint(owner, 200 ether);
         vm.prank(owner);
-        new2.transfer(address(migration2), 200 ether);
+        bool okNew = new2.transfer(address(migration2), 200 ether);
+        assertTrue(okNew);
 
         vm.warp(start + 1);
         vm.prank(user);
@@ -228,7 +231,7 @@ contract DysonMigrationTest is Test {
         old2.approve(address(migration2), 10 ether);
 
         vm.warp(start + 1);
-        vm.expectRevert(DysonMigration.InvalidParams.selector);
+        vm.expectRevert(bytes("transferHelper: transfer failed"));
         vm.prank(user);
         migration2.swap(1 ether);
     }
@@ -308,7 +311,8 @@ contract DysonMigrationTest is Test {
         reenterOld.mint(user, 5 ether);
         freshNew.mint(owner, 10 ether);
         vm.prank(owner);
-        freshNew.transfer(address(migration2), 10 ether);
+        bool okFresh = freshNew.transfer(address(migration2), 10 ether);
+        assertTrue(okFresh);
 
         reenterOld.setReenterTarget(migration2, 1 ether);
 
