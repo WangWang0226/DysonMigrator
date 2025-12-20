@@ -8,29 +8,28 @@ import {IERC20} from "Dyson-Finance-V1/interface/IERC20.sol";
 import {BasisSpikerScript} from "script/BasisSpiker.s.sol";
 
 contract BasisSpikerScriptHarness is BasisSpikerScript {
-    function execute(address controller, address weth, address usdc, address pairAddr) external {
+    function execute(address controller, address usdc, address pairAddr) external {
         vm.startPrank(controller);
-        _execute(controller, weth, usdc, pairAddr);
+        _execute(controller, usdc, pairAddr);
         vm.stopPrank();
     }
 
-    function buildUsdcDeposits() external pure returns (uint[] memory deposits) {
+    function buildUsdcDeposits() external pure returns (uint256[] memory deposits) {
         deposits = _buildUsdcDeposits();
     }
 
-    function sum(uint[] memory amounts) external pure returns (uint total) {
+    function sum(uint256[] memory amounts) external pure returns (uint256 total) {
         total = _sum(amounts);
     }
 }
 
 contract BasisSpikerScriptTest is Test {
-    uint internal constant FORK_BLOCK = 28115560;
+    uint256 internal constant FORK_BLOCK = 28115560;
 
     BasisSpikerScriptHarness harness;
     IPair pair;
     IFactory factory;
     address controller;
-    address weth;
     address usdc;
     address pairAddr;
 
@@ -38,7 +37,6 @@ contract BasisSpikerScriptTest is Test {
         string memory rpc = vm.envString("POLYGON_ZKEVM_RPC_URL");
         vm.createSelectFork(rpc, FORK_BLOCK);
 
-        weth = vm.envAddress("WETH");
         usdc = vm.envAddress("USDC");
         pairAddr = vm.envAddress("WETH_USDC_PAIR");
 
@@ -50,17 +48,17 @@ contract BasisSpikerScriptTest is Test {
     }
 
     function testScriptExecuteSpikeAndDeposit() public {
-        uint oldBasis = pair.basis();
-        uint noteCountBefore = pair.noteCount(controller);
+        uint256 oldBasis = pair.basis();
+        uint256 noteCountBefore = pair.noteCount(controller);
 
-        uint[] memory usdcDeposits = harness.buildUsdcDeposits();
-        uint totalUsdc = harness.sum(usdcDeposits);
+        uint256[] memory usdcDeposits = harness.buildUsdcDeposits();
+        uint256 totalUsdc = harness.sum(usdcDeposits);
 
         // Ensure controller has funds for the deposit on this fork.
         deal(usdc, controller, totalUsdc);
 
         // Run the script logic (harness will prank as controller internally).
-        harness.execute(controller, weth, usdc, pairAddr);
+        harness.execute(controller, usdc, pairAddr);
 
         // Basis restored.
         assertEq(pair.basis(), oldBasis, "basis should be restored");
@@ -69,8 +67,7 @@ contract BasisSpikerScriptTest is Test {
         assertEq(factory.controller(), controller, "controller should be restored");
 
         // Notes minted equals deposit count (delta).
-        uint noteCountAfter = pair.noteCount(controller);
+        uint256 noteCountAfter = pair.noteCount(controller);
         assertEq(noteCountAfter - noteCountBefore, usdcDeposits.length, "note count delta");
-
     }
 }

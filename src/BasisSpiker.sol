@@ -25,11 +25,11 @@ contract BasisSpiker {
     /// @param receiver Owner of the created notes
     function spikeAndDeposit(
         IPair pair,
-        uint newBasis,
-        uint[] calldata amounts0,
-        uint[] calldata amounts1,
-        uint total0,
-        uint total1,
+        uint256 newBasis,
+        uint256[] calldata amounts0,
+        uint256[] calldata amounts1,
+        uint256 total0,
+        uint256 total1,
         address receiver
     ) external {
         if (receiver == address(0)) revert ReceiverZero();
@@ -52,13 +52,13 @@ contract BasisSpiker {
             token1.safeApprove(address(pair), total1);
         }
 
-        uint oldBasis = pair.basis();
+        uint256 oldBasis = pair.basis();
         pair.setBasis(newBasis);
 
-        for (uint i = 0; i < amounts0.length; i++) {
+        for (uint256 i = 0; i < amounts0.length; i++) {
             pair.deposit0(receiver, amounts0[i], 0, 1 days);
         }
-        for (uint j = 0; j < amounts1.length; j++) {
+        for (uint256 j = 0; j < amounts1.length; j++) {
             pair.deposit1(receiver, amounts1[j], 0, 1 days);
         }
 

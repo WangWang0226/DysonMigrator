@@ -13,38 +13,38 @@ contract MockUSDC {
     string public constant NAME = "Mock USDC";
     string public constant SYMBOL = "mUSDC";
     uint8 private constant DECIMALS = 6;
-    uint public totalSupply;
+    uint256 public totalSupply;
 
-    mapping(address => uint) public balanceOf;
-    mapping(address => mapping(address => uint)) public allowance;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
-    event Transfer(address indexed from, address indexed to, uint amount);
-    event Approval(address indexed owner, address indexed spender, uint amount);
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     function decimals() external pure returns (uint8) {
         return DECIMALS;
     }
 
-    function mint(address to, uint amount) external {
+    function mint(address to, uint256 amount) external {
         balanceOf[to] += amount;
         totalSupply += amount;
         emit Transfer(address(0), to, amount);
     }
 
-    function approve(address spender, uint amount) external returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
     }
 
-    function transfer(address to, uint amount) external returns (bool) {
+    function transfer(address to, uint256 amount) external returns (bool) {
         _transfer(msg.sender, to, amount);
         return true;
     }
 
-    function transferFrom(address from, address to, uint amount) external returns (bool) {
-        uint allowed = allowance[from][msg.sender];
-        if (allowed != type(uint).max) {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        uint256 allowed = allowance[from][msg.sender];
+        if (allowed != type(uint256).max) {
             require(allowed >= amount, "allowance");
             allowance[from][msg.sender] = allowed - amount;
         }
@@ -52,7 +52,7 @@ contract MockUSDC {
         return true;
     }
 
-    function _transfer(address from, address to, uint amount) internal {
+    function _transfer(address from, address to, uint256 amount) internal {
         require(balanceOf[from] >= amount, "balance");
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
@@ -61,12 +61,12 @@ contract MockUSDC {
 }
 
 contract BasisSpikerTest is TestUtils {
-    uint internal constant INITIAL_LIQUIDITY_DYSN = 1e24; // DYSN (18 decimals)
-    uint internal constant INITIAL_LIQUIDITY_USDC = 1e12; // 1e6 tokens with 6 decimals
-    uint internal constant INITIAL_WEALTH_DYSN = 1e30; // DYSN (18 decimals)
-    uint internal constant INITIAL_WEALTH_USDC = 1e18; // 1e12 tokens with 6 decimals
-    uint internal constant USDC_DECIMALS = 1e6;
-    uint internal constant ONE_DAY_PREMIUM_K = 20936956903608548; // precomputed factor used in Pair.getPremium for 1 day
+    uint256 internal constant INITIAL_LIQUIDITY_DYSN = 1e24; // DYSN (18 decimals)
+    uint256 internal constant INITIAL_LIQUIDITY_USDC = 1e12; // 1e6 tokens with 6 decimals
+    uint256 internal constant INITIAL_WEALTH_DYSN = 1e30; // DYSN (18 decimals)
+    uint256 internal constant INITIAL_WEALTH_USDC = 1e18; // 1e12 tokens with 6 decimals
+    uint256 internal constant USDC_DECIMALS = 1e6;
+    uint256 internal constant ONE_DAY_PREMIUM_K = 20936956903608548; // precomputed factor used in Pair.getPremium for 1 day
 
     DYSON dysn;
     MockUSDC usdc;
@@ -98,31 +98,30 @@ contract BasisSpikerTest is TestUtils {
 
     function _approveUserToSpiker() internal {
         vm.startPrank(user);
-        dysn.approve(address(spiker), type(uint).max);
-        usdc.approve(address(spiker), type(uint).max);
+        dysn.approve(address(spiker), type(uint256).max);
+        usdc.approve(address(spiker), type(uint256).max);
         vm.stopPrank();
     }
 
     function testSpikeAndDepositRestoresBasisAndController() public {
         _approveUserToSpiker();
-        uint oldBasis = pair.basis();
-        uint newBasis = oldBasis * 10;
+        uint256 oldBasis = pair.basis();
+        uint256 newBasis = oldBasis * 10;
 
-        uint[] memory dysonDeposits = new uint[](2);
+        uint256[] memory dysonDeposits = new uint256[](2);
         dysonDeposits[0] = 1e18;
         dysonDeposits[1] = 2e18;
-        uint[] memory usdcDeposits = new uint[](1);
+        uint256[] memory usdcDeposits = new uint256[](1);
         usdcDeposits[0] = 3e6;
 
-        (uint[] memory amounts0, uint[] memory amounts1) = dysonIsToken0
-            ? (dysonDeposits, usdcDeposits)
-            : (usdcDeposits, dysonDeposits);
+        (uint256[] memory amounts0, uint256[] memory amounts1) =
+            dysonIsToken0 ? (dysonDeposits, usdcDeposits) : (usdcDeposits, dysonDeposits);
 
-        uint total0 = _sum(amounts0);
-        uint total1 = _sum(amounts1);
+        uint256 total0 = _sum(amounts0);
+        uint256 total1 = _sum(amounts1);
 
-        uint reserve0Before;
-        uint reserve1Before;
+        uint256 reserve0Before;
+        uint256 reserve1Before;
         (reserve0Before, reserve1Before) = pair.getReserves();
 
         vm.prank(user);
@@ -133,7 +132,7 @@ contract BasisSpikerTest is TestUtils {
         assertEq(pair.noteCount(user), amounts0.length + amounts1.length, "notes minted");
 
         // Ensure user deposit reached the pair.
-        (uint reserve0After, uint reserve1After) = pair.getReserves();
+        (uint256 reserve0After, uint256 reserve1After) = pair.getReserves();
         assertEq(reserve0After, reserve0Before + total0, "DYSN added");
         assertEq(reserve1After, reserve1Before + total1, "USDC added");
     }
@@ -143,17 +142,16 @@ contract BasisSpikerTest is TestUtils {
         // Move pending controller away from BasisSpiker so call will revert.
         factory.setController(user);
 
-        uint[] memory dysonDeposits = new uint[](1);
+        uint256[] memory dysonDeposits = new uint256[](1);
         dysonDeposits[0] = 1e18;
-        uint[] memory usdcDeposits = new uint[](0);
-        (uint[] memory amounts0, uint[] memory amounts1) = dysonIsToken0
-            ? (dysonDeposits, usdcDeposits)
-            : (usdcDeposits, dysonDeposits);
-        uint total0 = _sum(amounts0);
-        uint total1 = _sum(amounts1);
+        uint256[] memory usdcDeposits = new uint256[](0);
+        (uint256[] memory amounts0, uint256[] memory amounts1) =
+            dysonIsToken0 ? (dysonDeposits, usdcDeposits) : (usdcDeposits, dysonDeposits);
+        uint256 total0 = _sum(amounts0);
+        uint256 total1 = _sum(amounts1);
 
         assertEq(factory.pendingController(), user, "pending controller should be user");
-        uint basis = pair.basis();
+        uint256 basis = pair.basis();
         vm.startPrank(user);
         vm.expectRevert(BasisSpiker.NotController.selector);
         spiker.spikeAndDeposit(IPair(address(pair)), basis, amounts0, amounts1, total0, total1, user);
@@ -162,9 +160,9 @@ contract BasisSpikerTest is TestUtils {
 
     function testSpikeAndDepositRevertsIfNoDeposits() public {
         _approveUserToSpiker();
-        uint[] memory empty = new uint[](0);
+        uint256[] memory empty = new uint256[](0);
         assertEq(factory.pendingController(), address(spiker), "pending controller should be spiker");
-        uint basis = pair.basis();
+        uint256 basis = pair.basis();
         vm.startPrank(user);
         vm.expectRevert(BasisSpiker.NoDeposits.selector);
         spiker.spikeAndDeposit(IPair(address(pair)), basis, empty, empty, 0, 0, user);
@@ -173,17 +171,16 @@ contract BasisSpikerTest is TestUtils {
 
     function testSpikeAndDepositRevertsIfReceiverZero() public {
         _approveUserToSpiker();
-        uint[] memory dysonDeposits = new uint[](1);
+        uint256[] memory dysonDeposits = new uint256[](1);
         dysonDeposits[0] = 1e18;
-        uint[] memory usdcDeposits = new uint[](0);
-        (uint[] memory amounts0, uint[] memory amounts1) = dysonIsToken0
-            ? (dysonDeposits, usdcDeposits)
-            : (usdcDeposits, dysonDeposits);
-        uint total0 = _sum(amounts0);
-        uint total1 = _sum(amounts1);
+        uint256[] memory usdcDeposits = new uint256[](0);
+        (uint256[] memory amounts0, uint256[] memory amounts1) =
+            dysonIsToken0 ? (dysonDeposits, usdcDeposits) : (usdcDeposits, dysonDeposits);
+        uint256 total0 = _sum(amounts0);
+        uint256 total1 = _sum(amounts1);
 
         assertEq(factory.pendingController(), address(spiker), "pending controller should be spiker");
-        uint basis = pair.basis();
+        uint256 basis = pair.basis();
         vm.startPrank(user);
         vm.expectRevert(BasisSpiker.ReceiverZero.selector);
         spiker.spikeAndDeposit(IPair(address(pair)), basis, amounts0, amounts1, total0, total1, address(0));
@@ -193,20 +190,19 @@ contract BasisSpikerTest is TestUtils {
     function testSpikeAndDepositRevertsOnPremiumOverflow() public {
         _approveUserToSpiker();
 
-        uint deposit = INITIAL_WEALTH_DYSN;
-        uint[] memory dysonDeposits = new uint[](1);
+        uint256 deposit = INITIAL_WEALTH_DYSN;
+        uint256[] memory dysonDeposits = new uint256[](1);
         dysonDeposits[0] = deposit;
-        uint[] memory empty = new uint[](0);
-        (uint[] memory amounts0, uint[] memory amounts1) = dysonIsToken0
-            ? (dysonDeposits, empty)
-            : (empty, dysonDeposits);
+        uint256[] memory empty = new uint256[](0);
+        (uint256[] memory amounts0, uint256[] memory amounts1) =
+            dysonIsToken0 ? (dysonDeposits, empty) : (empty, dysonDeposits);
 
-        uint total0 = _sum(amounts0);
-        uint total1 = _sum(amounts1);
+        uint256 total0 = _sum(amounts0);
+        uint256 total1 = _sum(amounts1);
 
-        uint premiumOverflowThreshold = type(uint).max / deposit;
-        uint premiumTarget = premiumOverflowThreshold;
-        uint newBasis = (premiumTarget * 1e18 + ONE_DAY_PREMIUM_K - 1) / ONE_DAY_PREMIUM_K;
+        uint256 premiumOverflowThreshold = type(uint256).max / deposit;
+        uint256 premiumTarget = premiumOverflowThreshold;
+        uint256 newBasis = (premiumTarget * 1e18 + ONE_DAY_PREMIUM_K - 1) / ONE_DAY_PREMIUM_K;
 
         vm.startPrank(user);
         vm.expectRevert(stdError.arithmeticError);
@@ -216,15 +212,14 @@ contract BasisSpikerTest is TestUtils {
 
     function testSpikeAndDepositSetsPairAllowance() public {
         _approveUserToSpiker();
-        uint[] memory dysonDeposits = new uint[](1);
+        uint256[] memory dysonDeposits = new uint256[](1);
         dysonDeposits[0] = 5e18;
-        uint[] memory usdcDeposits = new uint[](1);
+        uint256[] memory usdcDeposits = new uint256[](1);
         usdcDeposits[0] = 10 * 1e6;
-        (uint[] memory amounts0, uint[] memory amounts1) = dysonIsToken0
-            ? (dysonDeposits, usdcDeposits)
-            : (usdcDeposits, dysonDeposits);
-        uint total0 = _sum(amounts0);
-        uint total1 = _sum(amounts1);
+        (uint256[] memory amounts0, uint256[] memory amounts1) =
+            dysonIsToken0 ? (dysonDeposits, usdcDeposits) : (usdcDeposits, dysonDeposits);
+        uint256 total0 = _sum(amounts0);
+        uint256 total1 = _sum(amounts1);
 
         vm.startPrank(user);
         spiker.spikeAndDeposit(IPair(address(pair)), pair.basis(), amounts0, amounts1, total0, total1, user);
@@ -235,8 +230,8 @@ contract BasisSpikerTest is TestUtils {
         assertEq(usdc.allowance(address(spiker), address(pair)), 0, "USDC allowance");
     }
 
-    function _sum(uint[] memory amounts) private pure returns (uint total) {
-        for (uint i = 0; i < amounts.length; i++) {
+    function _sum(uint256[] memory amounts) private pure returns (uint256 total) {
+        for (uint256 i = 0; i < amounts.length; i++) {
             total += amounts[i];
         }
     }
