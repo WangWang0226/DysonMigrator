@@ -40,71 +40,69 @@ contract BasisSpikerForkTest is TestUtils {
         token1 = pair.token1();
 
         factory = IFactory(pair.factory());
-        spiker = new BasisSpiker();
+        spiker = new BasisSpiker(address(pair));
         oldController = factory.controller();
 
-        // Fund user with live tokens on fork.
-        deal(usdc, user, 1_000_000e6);
-
-        vm.startPrank(user);
+        // Fund owner (this contract) with live tokens on fork.
+        deal(usdc, address(this), 1_000_000e6);
         IERC20(usdc).approve(address(spiker), type(uint256).max);
-        vm.stopPrank();
     }
 
-    /// @notice Spike basis to an extreme premium on the real WETH/USDC pair and withdraw all notes.
-    function testUsdcDepositsAndWithdraw() public {
-        // Spike and deposit
-        // Take controller so BasisSpiker can set basis during the test.
+    /// @notice Spike basis then withdraw all notes; expected to stop mid-way due to insufficient reserves.
+    function testWithdrawAllStopsOnInsufficientLiquidity() public {
         _takeController();
 
         uint256 oldBasis = pair.basis();
         uint256 newBasis = (1_000_0e18 * 1e18 + ONE_DAY_PREMIUM_K - 1) / ONE_DAY_PREMIUM_K; // round up
-        console.log("newBasis:", newBasis);
         uint256[] memory usdcDeposits = _buildUsdcDeposits();
         uint256 total1 = _sum(usdcDeposits);
 
-        vm.prank(user);
-        spiker.spikeAndDeposit(IPair(address(pair)), newBasis, new uint256[](0), usdcDeposits, 0, total1, user);
+        spiker.spikeAndDeposit(newBasis, new uint256[](0), usdcDeposits, 0, total1);
 
-        // Verify basis restored.
-        uint256 finalBasis = pair.basis();
-        assertEq(finalBasis, oldBasis, "basis not restored");
+        // Basis restored.
+        assertEq(pair.basis(), oldBasis, "basis not restored");
 
-        // Verify original controller restored.
-        address finalController = factory.pendingController();
-        assertEq(finalController, oldController, "controller not restored");
-
-        // Withdraw all notes
-        uint256 balance0Before = IERC20(token0).balanceOf(user);
-        uint256 balance1Before = IERC20(token1).balanceOf(user);
+        // Controller restored.
+        assertEq(factory.pendingController(), oldController, "controller not restored");
 
         vm.warp(block.timestamp + 1 days + 1);
-        (uint256 totalWithdraw0, uint256 totalWithdraw1) = _withdrawAllNotes(pair, 30, user);
 
-        // Verify user received all tokens back
-        uint256 balance0After = IERC20(token0).balanceOf(user);
-        uint256 balance1After = IERC20(token1).balanceOf(user);
-        assertEq(balance0After - balance0Before, totalWithdraw0, "token0 credited to user");
-        assertEq(balance1After - balance1Before, totalWithdraw1, "token1 credited to user");
-    }
+        uint256 receiver0Before = IERC20(token0).balanceOf(user);
+        uint256 receiver1Before = IERC20(token1).balanceOf(user);
+        (uint256 reserve0Before, uint256 reserve1Before) = pair.getReserves();
 
-    function _withdrawAllNotes(IPair localPair, uint256 noteCount, address owner)
-        private
-        returns (uint256 totalWithdraw0, uint256 totalWithdraw1)
-    {
-        for (uint256 i = 0; i < noteCount; i++) {
-            vm.prank(owner);
-            (uint256 token0Amt, uint256 token1Amt) = localPair.withdraw(i, owner);
-            totalWithdraw0 += token0Amt;
-            totalWithdraw1 += token1Amt;
-            console.log("withdraw index", i);
-            console.log("withdraw token0, token1: ", token0Amt, token1Amt);
-        }
-        console.log("totalWithdraw0", totalWithdraw0);
-        console.log("totalWithdraw1", totalWithdraw1);
-        (uint256 reserve0, uint256 reserve1) = localPair.getReserves();
-        console.log("Reserve0 after withdraw", reserve0);
-        console.log("Reserve1 after withdraw", reserve1);
+        spiker.withdrawAll(user);
+
+        uint256 receiver0After = IERC20(token0).balanceOf(user);
+        uint256 receiver1After = IERC20(token1).balanceOf(user);
+        (uint256 reserve0After, uint256 reserve1After) = pair.getReserves();
+
+        uint256 receiver0Delta = receiver0After - receiver0Before;
+        uint256 receiver1Delta = receiver1After - receiver1Before;
+
+        assertTrue(receiver0After > receiver0Before || receiver1After > receiver1Before, "receiver got nothing");
+        // Should withdraw on note 13 but fail on note 14 due to insufficient reserves.
+        IPair.Note memory note13 = pair.notes(address(spiker), 13);
+        IPair.Note memory note14 = pair.notes(address(spiker), 14);
+        assertTrue(note13.token0Amt == 0 && note13.token1Amt == 0, "expected fully withdrawn note13");
+        assertTrue(note14.token0Amt != 0 || note14.token1Amt != 0, "expected remaining note after stop");
+
+        // In the beginning,
+        // reserve0: 11.278683928339019682 WETH
+        // reserve1: 32873.540396 USDC
+        // After deposits and 1 day warp, reserves are:
+        // reserve0: 11.278683928339019682 WETH
+        // reserve1: 32880.159330 USDC
+        // After withdrawAll, reserves are:
+        // reserve0: 0.012875303359153263 WETH
+        // reserve1: 39.755618 USDC
+        // Therefore, total withdrawn amounts are:
+        // receiver0Delta: 11.265808624979866419 WETH
+        // receiver1Delta: 32840.403712 USDC
+        assertEq(receiver0Delta, 11265808624979866419); // 11.265808624979866419 WETH
+        assertEq(receiver1Delta, 32840403712); // 32840.403712 USDC
+        assertEq(reserve0After, 12875303359153263); // 0.012875303359153263 WETH
+        assertEq(reserve1After, 39755618); // 39.755618 USDC
     }
 
     function _takeController() private {
@@ -114,36 +112,36 @@ contract BasisSpikerForkTest is TestUtils {
 
     function _buildUsdcDeposits() private pure returns (uint256[] memory usdcDeposits) {
         uint256[30] memory rawValues = [
-            uint256(1.6384e6),
-            1.6384e6, // 2^14
-            0.8192e6,
-            0.8192e6, // 2^13
-            0.4096e6,
-            0.4096e6, // 2^12
-            0.2048e6,
-            0.2048e6, // 2^11
-            0.1024e6,
-            0.1024e6, // 2^10
-            0.0512e6,
-            0.0512e6, // 2^9
-            0.0256e6,
-            0.0256e6, // 2^8
-            0.0128e6,
-            0.0128e6, // 2^7
-            0.0064e6,
-            0.0064e6, // 2^6
-            0.0032e6,
-            0.0032e6, // 2^5
-            0.0016e6,
-            0.0016e6, // 2^4
-            0.0008e6,
-            0.0008e6, // 2^3
-            0.0004e6,
-            0.0004e6, // 2^2
-            0.0002e6,
-            0.0002e6, // 2^1
-            0.0001e6,
-            0.0001e6 // 2^0
+            uint256(1.654784e6),
+            1.654784e6, // 2^14*1.01
+            0.827392e6,
+            0.827392e6, // 2^13*1.01
+            0.413696e6,
+            0.413696e6, // 2^12*1.01
+            0.206848e6,
+            0.206848e6, // 2^11*1.01
+            0.103424e6,
+            0.103424e6, // 2^10*1.01
+            0.051712e6,
+            0.051712e6, // 2^9*1.01
+            0.025856e6,
+            0.025856e6, // 2^8*1.01
+            0.012928e6,
+            0.012928e6, // 2^7*1.01
+            0.006464e6,
+            0.006464e6, // 2^6*1.01
+            0.003232e6,
+            0.003232e6, // 2^5*1.01
+            0.001616e6,
+            0.001616e6, // 2^4*1.01
+            0.000808e6,
+            0.000808e6, // 2^3*1.01
+            0.000404e6,
+            0.000404e6, // 2^2*1.01
+            0.000202e6,
+            0.000202e6, // 2^1*1.01
+            0.000101e6,
+            0.000101e6 // 2^0*1.01
         ];
 
         usdcDeposits = new uint256[](rawValues.length);

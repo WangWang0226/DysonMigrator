@@ -20,27 +20,28 @@ contract BasisSpikerScript is Script {
     // Target premium and basis
     uint256 premiumTarget = 1_000_0e18; // same as fork test
     uint256 newBasis = 477624329363570007708415; // (premiumTarget * 1e18 + ONE_DAY_PREMIUM_K - 1) / ONE_DAY_PREMIUM_K;
+    address public lastSpiker;
 
     function run() external {
         uint256 controllerKey = vm.envUint("CONTROLLER_PK");
-        address controller = vm.addr(controllerKey);
         address usdc = vm.envAddress("USDC");
         address pairAddr = vm.envAddress("WETH_USDC_PAIR");
         vm.startBroadcast(controllerKey);
-        _execute(controller, usdc, pairAddr);
+        _execute(usdc, pairAddr);
         vm.stopBroadcast();
     }
 
     /// @dev Core flow extracted for reuse in tests.
-    function _execute(address controller, address usdc, address pairAddr) internal {
+    function _execute(address usdc, address pairAddr) internal {
         IPair pair = IPair(pairAddr);
         IFactory factory = IFactory(pair.factory());
-        address spikerAddr = address(new BasisSpiker());
+        address spikerAddr = address(new BasisSpiker(address(pair)));
+        lastSpiker = spikerAddr;
 
         // Set pending controller to spiker so spikeAndDeposit can take control.
         factory.setController(spikerAddr);
 
-        _spikeAndDeposit(pair, spikerAddr, usdc, controller);
+        _spikeAndDeposit(pair, spikerAddr, usdc);
 
         // After spikeAndDeposit, pending controller is set back to the original controller.
         factory.becomeController();
@@ -49,46 +50,45 @@ contract BasisSpikerScript is Script {
         console.log("Controller restored to", factory.controller());
     }
 
-    function _spikeAndDeposit(IPair pair, address spikerAddr, address usdc, address controller) internal {
+    function _spikeAndDeposit(IPair pair, address spikerAddr, address usdc) internal {
         uint256[] memory usdcDeposits = _buildUsdcDeposits();
         uint256 totalUsdc = _sum(usdcDeposits);
         IERC20(usdc).approve(spikerAddr, totalUsdc);
-        BasisSpiker(spikerAddr)
-            .spikeAndDeposit(pair, newBasis, new uint256[](0), usdcDeposits, 0, totalUsdc, controller);
+        BasisSpiker(spikerAddr).spikeAndDeposit(newBasis, new uint256[](0), usdcDeposits, 0, totalUsdc);
     }
 
     function _buildUsdcDeposits() internal pure returns (uint256[] memory usdcDeposits) {
         uint256[30] memory rawValues = [
-            uint256(1.6384e6),
-            1.6384e6, // 2^14
-            0.8192e6,
-            0.8192e6, // 2^13
-            0.4096e6,
-            0.4096e6, // 2^12
-            0.2048e6,
-            0.2048e6, // 2^11
-            0.1024e6,
-            0.1024e6, // 2^10
-            0.0512e6,
-            0.0512e6, // 2^9
-            0.0256e6,
-            0.0256e6, // 2^8
-            0.0128e6,
-            0.0128e6, // 2^7
-            0.0064e6,
-            0.0064e6, // 2^6
-            0.0032e6,
-            0.0032e6, // 2^5
-            0.0016e6,
-            0.0016e6, // 2^4
-            0.0008e6,
-            0.0008e6, // 2^3
-            0.0004e6,
-            0.0004e6, // 2^2
-            0.0002e6,
-            0.0002e6, // 2^1
-            0.0001e6,
-            0.0001e6 // 2^0
+            uint256(1.654784e6),
+            1.654784e6, // 2^14*1.01
+            0.827392e6,
+            0.827392e6, // 2^13*1.01
+            0.413696e6,
+            0.413696e6, // 2^12*1.01
+            0.206848e6,
+            0.206848e6, // 2^11*1.01
+            0.103424e6,
+            0.103424e6, // 2^10*1.01
+            0.051712e6,
+            0.051712e6, // 2^9*1.01
+            0.025856e6,
+            0.025856e6, // 2^8*1.01
+            0.012928e6,
+            0.012928e6, // 2^7*1.01
+            0.006464e6,
+            0.006464e6, // 2^6*1.01
+            0.003232e6,
+            0.003232e6, // 2^5*1.01
+            0.001616e6,
+            0.001616e6, // 2^4*1.01
+            0.000808e6,
+            0.000808e6, // 2^3*1.01
+            0.000404e6,
+            0.000404e6, // 2^2*1.01
+            0.000202e6,
+            0.000202e6, // 2^1*1.01
+            0.000101e6,
+            0.000101e6 // 2^0*1.01
         ];
 
         usdcDeposits = new uint256[](rawValues.length);

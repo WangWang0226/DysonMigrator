@@ -10,7 +10,7 @@ import {BasisSpikerScript} from "script/BasisSpiker.s.sol";
 contract BasisSpikerScriptHarness is BasisSpikerScript {
     function execute(address controller, address usdc, address pairAddr) external {
         vm.startPrank(controller);
-        _execute(controller, usdc, pairAddr);
+        _execute(usdc, pairAddr);
         vm.stopPrank();
     }
 
@@ -29,9 +29,9 @@ contract BasisSpikerScriptTest is Test {
     BasisSpikerScriptHarness harness;
     IPair pair;
     IFactory factory;
-    address controller;
     address usdc;
     address pairAddr;
+    address controller;
 
     function setUp() public {
         string memory rpc = vm.envString("POLYGON_ZKEVM_RPC_URL");
@@ -49,13 +49,13 @@ contract BasisSpikerScriptTest is Test {
 
     function testScriptExecuteSpikeAndDeposit() public {
         uint256 oldBasis = pair.basis();
-        uint256 noteCountBefore = pair.noteCount(controller);
+        uint256 noteCountBefore = pair.noteCount(harness.lastSpiker());
 
         uint256[] memory usdcDeposits = harness.buildUsdcDeposits();
         uint256 totalUsdc = harness.sum(usdcDeposits);
 
         // Ensure controller has funds for the deposit on this fork.
-        deal(usdc, controller, totalUsdc);
+        deal(usdc, address(harness), totalUsdc);
 
         // Run the script logic (harness will prank as controller internally).
         harness.execute(controller, usdc, pairAddr);
@@ -67,7 +67,7 @@ contract BasisSpikerScriptTest is Test {
         assertEq(factory.controller(), controller, "controller should be restored");
 
         // Notes minted equals deposit count (delta).
-        uint256 noteCountAfter = pair.noteCount(controller);
+        uint256 noteCountAfter = pair.noteCount(harness.lastSpiker());
         assertEq(noteCountAfter - noteCountBefore, usdcDeposits.length, "note count delta");
     }
 }
