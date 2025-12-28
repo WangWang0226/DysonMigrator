@@ -5,7 +5,6 @@ pragma solidity ^0.8.17;
 import {IPair} from "Dyson-Finance-V1/interface/IPair.sol";
 import {IFactory} from "Dyson-Finance-V1/interface/IFactory.sol";
 import {TransferHelper} from "./lib/TransferHelper.sol";
-import {IERC20} from "Dyson-Finance-V1/interface/IERC20.sol";
 
 /// @notice Helper that spikes `basis`, batches many one-day deposits, then restores the old basis in one tx.
 /// @dev This contract must be the `controller` of the factory used by the pair, otherwise `setBasis` reverts.
