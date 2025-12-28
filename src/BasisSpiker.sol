@@ -81,25 +81,10 @@ contract BasisSpiker {
             try pair.withdraw(i, to) returns (uint256 amt0, uint256 amt1) {
                 total0 += amt0;
                 total1 += amt1;
-                _safeReserves();
             } catch {
                 continue;
             }
         }
 
-    }
-
-    function _safeReserves() private view returns (uint256 reserve0After, uint256 reserve1After) {
-        address token1 = pair.token1();
-        address token0 = pair.token0();
-        uint balance0 = IERC20(token0).balanceOf(address(pair));
-        uint balance1 = IERC20(token1).balanceOf(address(pair));
-        try pair.getReserves() returns (uint256 r0, uint256 r1) {
-            reserve0After = r0;
-            reserve1After = r1;
-        } catch {
-            reserve0After = balance0;
-            reserve1After = balance1;
-        }
     }
 }
